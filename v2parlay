@@ -1,0 +1,64 @@
+import random
+
+# settings and set up 
+bet_1 = 220
+bet_2 = -140
+bet_3 = -115
+bet_1_name = "Luka Over Points"
+bet_2_name = "Luka Over Rebounds"
+bet_3_name = "Luka Under Assists"
+num_of_bets = 3
+num_of_simulations = 100000
+bets = {bet_1_name: bet_1, bet_2_name: bet_2, bet_3_name: bet_3}
+odds = [bet_1, bet_2, bet_3]
+UNIT = 100
+VARIANCE = 0.05
+
+# define functions
+def ip_conversion(odds):
+    if odds > 0:
+        return 100 / (abs(odds) + 100)
+    else:
+        return odds / (odds + 100)
+def deci_conversion(odds):
+    if odds > 0:
+        return (odds / 100) + 1
+    else:
+        return (100 / abs(odds)) + 1
+def decimal_payout(bet, odds):
+    return bet * odds
+def parlay_odds_calc(decimal_odds):
+    parlay_odds = 1
+    for i in decimal_odds:
+        parlay_odds *= i
+    return parlay_odds
+
+# create the decimal_odds list using the deci_conversion function and the dicttionary
+decimal_odds = [deci_conversion(bets[bet]) for bet in bets]
+
+# create the monte carlo simulation for bet_1
+var = random.uniform((-VARIANCE), VARIANCE)
+bet_1_sim_prob = ip_conversion(bet_1) + var
+payout = decimal_payout(UNIT, bet_1)
+expected_value = payout * bet_1_sim_prob
+bet_1_total_payout = 0
+for _ in range(num_of_simulations):
+    var = random.uniform((-VARIANCE), VARIANCE)
+    bet_1_sim_prob = ip_conversion(bet_1) + var
+    payout = decimal_payout(UNIT, bet_1)
+    bet_1_total_payout += payout * bet_1_sim_prob
+    sim_expected_value = total_payout / num_of_simulations
+print(bet_1_sim_prob, sim_expected_value)  
+
+# create the monte carlo simulation for bet_2
+var = random.uniform((-VARIANCE), VARIANCE)
+bet_2_sim_prob = ip_conversion(bet_2) + var
+payout = decimal_payout(UNIT, bet_2)
+expected_value = payout * bet_2_sim_prob
+total_payout = 0
+for _ in range(num_of_simulations):
+    var = random.uniform((-VARIANCE), VARIANCE)
+    bet_2_sim_prob = ip_conversion(bet_2) + var
+    payout = decimal_payout(UNIT, bet_2)
+    total_payout += payout * bet_2_sim_prob
+    sim_expected_value = total_payout / num_of_simulations
