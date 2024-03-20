@@ -1,0 +1,112 @@
+```{r}
+library(hoopR)
+library(tidyverse)
+library(purrr)
+years <- 2024
+team <- 2633
+```
+
+```{r}
+teams <- espn_mbb_teams(years)
+schedule <- load_mbb_team_box(years)
+```
+
+```{r}
+schedule <- schedule %>% select(game_id, team_id, opponent_team_id, team_home_away)
+
+schedule <- schedule %>% 
+  mutate(d1_team = ifelse(team_id %in% teams$team_id, 1, 0),
+         d1_opp = ifelse(opponent_team_id %in% teams$team_id, 1, 0))
+```
+
+```{r}
+filtered_schedule <- schedule %>% filter(team_id == team)
+# create a vector from the game_id column of filtered
+game_ids <- filtered_schedule$game_id
+
+fetch_game_data <- function(game_id) {
+  espn_mbb_wp(game_id)
+}
+```
+
+```{r}
+team_wp <- map_dfr(game_ids, ~fetch_game_data(.x) %>% 
+                                    mutate(time_left = as.character(time_left)))
+# select game_id, game_seconds_left, home_win_percentage, away_win_percentage
+team_wp <- team_wp %>% select(game_id, game_seconds_left, home_win_percentage, away_win_percentage)
+```
+
+```{r}
+filtered_schedule2 <- filtered_schedule %>% select(game_id, team_home_away)
+filtered_schedule2 <- filtered_schedule2 %>% 
+                      mutate(game_id = as.character(game_id))
+
+team_wp <- left_join(team_wp, filtered_schedule2, by = "game_id")
+
+team_wp <- team_wp %>% 
+  mutate(team_wp = ifelse(team_home_away == "home", home_win_percentage, away_win_percentage))
+
+team_wp <- team_wp %>% select(game_id, game_seconds_left, team_wp)
+
+team_wp <- team_wp %>% 
+  mutate(lag_game_seconds_left = ifelse(lag(game_id) == game_id, lag(game_seconds_left), NA)) 
+
+
+```
+
+```{r}
+team_wp <- team_wp %>% na.omit()
+# create a column called elapsed_seconds
+team_wp <- team_wp %>% 
+  mutate(elapsed_seconds = lag_game_seconds_left - game_seconds_left)
+
+# create a column called wp_95 that returns a 1 if the wp is greater than or equal to 0.95
+team_wp <- team_wp %>% 
+  mutate(wp_95 = ifelse(team_wp >= 0.95, 1, 0),
+         wp_90 = ifelse(team_wp >= 0.9, 1, 0),
+         wp_80 = ifelse(team_wp >= 0.8, 1, 0),
+         wp_75 = ifelse(team_wp >= 0.75, 1, 0),
+         wp_25 = ifelse(team_wp <= 0.25, 1, 0),
+         wp_20 = ifelse(team_wp <= 0.20, 1, 0),
+         wp_10 = ifelse(team_wp <= 0.1, 1, 0),
+         wp_5 = ifelse(team_wp <= 0.05, 1, 0))
+```
+
+```{r}
+team_wp <- team_wp %>% 
+  mutate(wp_95_true = ifelse(wp_95 == 1, elapsed_seconds, 0),
+         wp_90_true = ifelse(wp_90 == 1, elapsed_seconds, 0),
+         wp_80_true = ifelse(wp_80 == 1, elapsed_seconds, 0),
+         wp_75_true = ifelse(wp_75 == 1, elapsed_seconds, 0),
+         wp_25_true = ifelse(wp_25 == 1, elapsed_seconds, 0),
+         wp_20_true = ifelse(wp_20 == 1, elapsed_seconds, 0),
+         wp_10_true = ifelse(wp_10 == 1, elapsed_seconds, 0),
+         wp_5_true = ifelse(wp_5 == 1, elapsed_seconds, 0))
+# filter game_seocnds_left >= 0
+team_wp <- team_wp %>% filter(game_seconds_left >= 0)
+
+team_wp2 <- team_wp %>% 
+  group_by(game_id) %>% 
+  summarise(elapsed_seconds = sum(elapsed_seconds),
+            wp_95_true = sum(wp_95_true),
+            wp_90_true = sum(wp_90_true),
+            wp_80_true = sum(wp_80_true),
+            wp_75_true = sum(wp_75_true),
+            wp_25_true = sum(wp_25_true),
+            wp_20_true = sum(wp_20_true),
+            wp_10_true = sum(wp_10_true),
+            wp_5_true = sum(wp_5_true))
+```
+
+```{r}
+# create a column called m5 that is wp_95_true - wp_5_true
+team_wp2 <- team_wp2 %>% 
+  mutate(m4 = wp_95_true - wp_5_true,
+         m3 = wp_90_true - wp_10_true,
+         m2 = wp_80_true - wp_20_true,
+         m1 = wp_75_true - wp_25_true,
+         dom = ((m4 * 2.5) + (m3 * 1.75) + (m2 * 1.25) + (m1)) / 2400) 
+```
+
+
+
